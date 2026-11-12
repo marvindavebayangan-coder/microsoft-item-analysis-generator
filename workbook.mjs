@@ -1,5 +1,5 @@
-import { CHECK, column, key, literal, text, isCheck, readInput, uniqueTabName, itemOrder, paperGrades } from "./domain.mjs?v=0.2.1";
-import { detectTemplate, subjectLayout, headerPlan, analysisFormulas, MIN_ITEM_WIDTH, GUIDE_LINES } from "./layout.mjs?v=0.2.1";
+import { CHECK, column, key, literal, text, isCheck, readInput, uniqueTabName, itemOrder, paperGrades } from "./domain.mjs?v=0.2.2";
+import { detectTemplate, subjectLayout, headerPlan, analysisFormulas, MIN_ITEM_WIDTH, GUIDE_LINES } from "./layout.mjs?v=0.2.2";
 
 const REGISTRY = "TIA.Generator.Registry.v1";
 const MAX_COLUMNS = 16384;
@@ -247,15 +247,11 @@ function renderHeader(sheet, data, template) {
   return plan.cells;
 }
 
-async function clearCopiedRules(context, sheet) {
-  const rules = sheet.getUsedRange().conditionalFormats.load("items/type");
-  await context.sync();
-  const custom = rules.items.filter(rule => rule.type === Excel.ConditionalFormatType.custom);
-  custom.forEach(rule => rule.custom.rule.load("formula"));
-  await context.sync();
-  custom.forEach(rule => {
-    if (String(rule.custom.rule.formula || "").includes("TIA_ANALYSIS")) rule.delete();
-  });
+async function resetCopiedRules(context, sheet) {
+  // Imported rule IDs can fail after Worksheet.copy in Excel Online. Do not
+  // enumerate or read inherited rule objects. Only the new subject is reset;
+  // its group and decision rules are built again after the layout is ready.
+  sheet.getRange().conditionalFormats.clearAll();
   await context.sync();
 }
 
@@ -267,14 +263,14 @@ function blankRows(range) {
 async function resizeSubject(context, sheet, source, template, data, progress = () => {}) {
   const layout = subjectLayout(data.questions, data.roster.length);
   const width = template.totalCol + 1;
+  progress("resetting the copied color rules");
+  await resetCopiedRules(context, sheet);
   // Work only on the new copy. Remove old sample answers and cyclic legacy formulas first.
   progress("clearing the copied sample answers");
   sheet.getRangeByIndexes(0, 0, 9, width).unmerge();
   sheet.getRangeByIndexes(0, 0, 9, width).clear("Contents");
   sheet.getRangeByIndexes(9, 0, template.students + template.analysisRows, width).clear("Contents");
   await context.sync();
-  progress("reading the copied color rules");
-  await clearCopiedRules(context, sheet);
   progress("resizing the question columns");
   const extra = data.questions - template.capacity;
   if (extra > 0) {

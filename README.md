@@ -1,8 +1,8 @@
-# Microsoft Item Analysis Generator — prototype 0.2.1
+# Microsoft Item Analysis Generator — prototype 0.2.2
 
 An Excel Online Office.js add-in for the A1 and A3 accounts used in this project. Program files are hosted on GitHub Pages. Class records stay in the teacher's workbook; this version has no backend or Microsoft Forms connection.
 
-This patch explicitly loads each copied conditional-format rule's formula before reading it. The earlier parent-object load could stop generation and trigger cleanup of the new subject. Failures now open the error panel automatically and include the generation step and original Office error. Failed attempts still remove their unfinished copies.
+This patch avoids individual inherited-rule lookups after Worksheet.copy. The reported Excel Online error was InvalidArgument at ConditionalFormatCollection.getItem. Each new subject copy now uses the documented bulk clearAll operation before resizing, then receives fresh group and decision rules. This resets inherited conditional rules only on the new subject. Ordinary cell formatting is kept. Failures still open the error panel with the step and original Office error, and unfinished copies are removed.
 
 ## This update
 
@@ -23,7 +23,7 @@ The green worksheet drawing labeled Click here to Generate has no assigned add-i
 
 ## Update GitHub Pages
 
-1. Extract Microsoft_TIA_Template_Fix_021.zip.
+1. Extract Microsoft_TIA_Template_Fix_022.zip.
 2. Open its web folder.
 3. In the existing repository, select Add file > Upload files.
 4. Upload **all files inside web** directly to the repository root and replace matching files. Include the new layout.mjs.
@@ -33,13 +33,13 @@ Pages is already configured for main, /(root). This ZIP contains the add-in file
 
 ## Open the updated add-in
 
-1. Open https://marvindavebayangan-coder.github.io/microsoft-item-analysis-generator/?v=0.2.1
+1. Open https://marvindavebayangan-coder.github.io/microsoft-item-analysis-generator/?v=0.2.2
 2. Use the XML included at the root of the ZIP, or expand Install or update the add-in on the page to download it.
 3. Open your TIA Prototype workbook in Excel Online.
 4. Close the old task pane and upload the new XML through Home > Add-ins > Advanced > Upload My Add-in.
-5. Confirm the pane says Prototype 0.2.1, then select Check Template.
+5. Confirm the pane says Prototype 0.2.2, then select Check Template.
 
-The add-in ID is unchanged. The manifest version is 1.2.1.0, and every application module uses the 0.2.1 cache key.
+The add-in ID is unchanged. The manifest version is 1.2.2.0, and every application module uses the 0.2.2 cache key.
 
 ## First Excel test
 
