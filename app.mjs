@@ -1,5 +1,5 @@
-import { buildManifest } from "./manifest-builder.mjs?v=0.2.0";
-import { prepareWorkbook, generateSubject, gradePaper, applyStudentView, registerEvents } from "./workbook.mjs?v=0.2.0";
+import { buildManifest } from "./manifest-builder.mjs?v=0.2.1";
+import { prepareWorkbook, generateSubject, gradePaper, applyStudentView, registerEvents } from "./workbook.mjs?v=0.2.1";
 
 const status = document.getElementById("status");
 const connection = document.getElementById("connection");
@@ -19,8 +19,11 @@ function enabled() { for (const button of buttons) button.disabled = !ready || b
 
 function failed(error) {
   message(error.message || String(error), "failed");
-  errorText.textContent = [error.code, error.debugInfo?.errorLocation, error.message || String(error)].filter(Boolean).join("\n");
+  errorText.textContent = [error.stage && "Step: " + error.stage, error.code,
+    error.debugInfo?.errorLocation, error.message || String(error)].filter(Boolean).join("\n");
   errorBox.hidden = false;
+  errorBox.open = true;
+  errorBox.scrollIntoView({ block: "nearest" });
 }
 
 async function perform(label, action) {
@@ -47,7 +50,7 @@ try {
     document.body.append(link); link.click(); link.remove();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   });
-  document.getElementById("download-help").textContent = "This XML opens prototype 0.2 at this HTTPS address.";
+  document.getElementById("download-help").textContent = "This XML opens prototype 0.2.1 at this HTTPS address.";
 } catch (error) {
   document.getElementById("download-help").textContent = "Publish these files at an HTTPS address to download the XML.";
 }

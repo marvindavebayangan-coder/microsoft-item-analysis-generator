@@ -1,5 +1,5 @@
-import { CHECK, column, key, literal, text, isCheck, readInput, uniqueTabName, itemOrder, paperGrades } from "./domain.mjs?v=0.2.0";
-import { detectTemplate, subjectLayout, headerPlan, analysisFormulas, MIN_ITEM_WIDTH, GUIDE_LINES } from "./layout.mjs?v=0.2.0";
+import { CHECK, column, key, literal, text, isCheck, readInput, uniqueTabName, itemOrder, paperGrades } from "./domain.mjs?v=0.2.1";
+import { detectTemplate, subjectLayout, headerPlan, analysisFormulas, MIN_ITEM_WIDTH, GUIDE_LINES } from "./layout.mjs?v=0.2.1";
 
 const REGISTRY = "TIA.Generator.Registry.v1";
 const MAX_COLUMNS = 16384;
@@ -251,11 +251,12 @@ async function clearCopiedRules(context, sheet) {
   const rules = sheet.getUsedRange().conditionalFormats.load("items/type");
   await context.sync();
   const custom = rules.items.filter(rule => rule.type === Excel.ConditionalFormatType.custom);
-  custom.forEach(rule => rule.custom.load("rule"));
+  custom.forEach(rule => rule.custom.rule.load("formula"));
   await context.sync();
   custom.forEach(rule => {
     if (String(rule.custom.rule.formula || "").includes("TIA_ANALYSIS")) rule.delete();
   });
+  await context.sync();
 }
 
 function blankRows(range) {
@@ -263,14 +264,18 @@ function blankRows(range) {
     (value == null || value === "") && !String(range.formulas[r][c] ?? "").startsWith("=")));
 }
 
-async function resizeSubject(context, sheet, source, template, data) {
+async function resizeSubject(context, sheet, source, template, data, progress = () => {}) {
   const layout = subjectLayout(data.questions, data.roster.length);
   const width = template.totalCol + 1;
   // Work only on the new copy. Remove old sample answers and cyclic legacy formulas first.
+  progress("clearing the copied sample answers");
   sheet.getRangeByIndexes(0, 0, 9, width).unmerge();
   sheet.getRangeByIndexes(0, 0, 9, width).clear("Contents");
   sheet.getRangeByIndexes(9, 0, template.students + template.analysisRows, width).clear("Contents");
+  await context.sync();
+  progress("reading the copied color rules");
   await clearCopiedRules(context, sheet);
+  progress("resizing the question columns");
   const extra = data.questions - template.capacity;
   if (extra > 0) {
     sheet.getRangeByIndexes(0, template.totalCol - 1, 1, extra).getEntireColumn().insert("Right");
@@ -280,6 +285,8 @@ async function resizeSubject(context, sheet, source, template, data) {
   } else if (extra < 0) {
     sheet.getRangeByIndexes(0, data.questions + 2, 1, -extra).getEntireColumn().delete("Left");
   }
+  await context.sync();
+  progress("resizing the student rows");
   const difference = data.roster.length - template.students;
   if (difference > 0) {
     sheet.getRangeByIndexes(template.footer - 1, 0, difference, 1).getEntireRow().insert("Down");
@@ -287,6 +294,7 @@ async function resizeSubject(context, sheet, source, template, data) {
     sheet.getRangeByIndexes(data.roster.length + 9, 0, -difference, 1).getEntireRow().delete("Up");
   }
   await context.sync();
+  progress("formatting the student rows");
   const body = sheet.getRangeByIndexes(9, 0, data.roster.length, layout.score);
   body.copyFrom(sheet.getRangeByIndexes(9, 0, 1, layout.score), "Formats");
   body.clear("Contents");
@@ -297,6 +305,8 @@ async function resizeSubject(context, sheet, source, template, data) {
   // Keep the template's narrow, rotated score columns, rather than making four wide columns.
   sheet.getRangeByIndexes(0, layout.total - 1, 1, 1).getEntireColumn().format.columnWidth = Math.max(24, template.widths[template.totalCol - 1]);
   sheet.getRangeByIndexes(0, layout.score - 1, 1, 1).getEntireColumn().format.columnWidth = Math.max(33, template.widths[template.totalCol]);
+  await context.sync();
+  progress("making space for the analysis rows");
   if (template.analysisRows === 4) {
     const next = sheet.getRangeByIndexes(layout.footer + 3, 0, 2, Math.max(layout.score, template.usedWidth + extra)).load("values,formulas");
     await context.sync();
@@ -307,6 +317,7 @@ async function resizeSubject(context, sheet, source, template, data) {
     sheet.getRangeByIndexes(layout.footer + 3, 0, 2, layout.score).format.rowHeight = 19.5;
   }
   const guideFirst = layout.footer + 6;
+  progress("preserving the interpretation notes");
   const guides = sheet.getRangeByIndexes(guideFirst - 1, 0, 3, Math.max(layout.score, template.usedWidth + extra)).load("values,formulas");
   await context.sync();
   const existing = GUIDE_LINES.every((line, i) => String(guides.values[i][0] || "").startsWith(line.split(":")[0] + ":"));
@@ -444,6 +455,7 @@ export async function generateSubject() {
     const tabName = uniqueTabName(data.subject, sheets.items.map(sheet => sheet.name));
     const paperName = uniqueTabName(data.subject, [...sheets.items.map(sheet => sheet.name), tabName], " - Manual Checking");
     const created = [];
+    let stage = "copying Original";
     try {
       const subject = source.copy(Excel.WorksheetPositionType.after, input);
       subject.load("id,position");
@@ -451,13 +463,18 @@ export async function generateSubject() {
       created.push(subject.id);
       subject.name = tabName;
       subject.visibility = "Visible";
-      await resizeSubject(context, subject, source, template, data);
+      await resizeSubject(context, subject, source, template, data, value => { stage = value; });
+      stage = "writing the student roster and subject header";
       subject.getRangeByIndexes(9, 0, data.roster.length, 2).values =
         data.roster.map(student => [literal(student.name), student.order]);
       const cells = renderHeader(subject, data, template);
+      await context.sync();
+      stage = "building the item analysis";
       renderAnalysis(subject, data, cells);
+      await context.sync();
       let paper = null, paperNames = [];
       if (data.roster.some(student => student.paper)) {
+        stage = "creating the paper checking sheet";
         paper = sheets.add(paperName);
         paper.load("id");
         await context.sync();
@@ -465,19 +482,27 @@ export async function generateSubject() {
         paper.position = subject.position + 1;
         paperNames = renderPaper(paper, data);
       }
+      stage = "finishing the generated sheets";
       subject.activate();
       await context.sync();
       state.setup = "template-2";
       state.subjects.push({ id: subject.id, title: data.subject, tabName, questions: data.questions,
         students: data.roster.length, paperId: paper?.id || "", paperNames, cells,
         layoutVersion: 2, onlineStudentKeys: [] });
+      stage = "saving the subject links";
       saveRegistry(context, state);
       await context.sync();
       return "Created " + tabName + ": " + data.questions + " questions and " + data.roster.length +
         " students from Original." + (paper ? " Created " + paperName + " for " + paperNames.length + " paper students." : "");
     } catch (error) {
-      await cleanup(created);
-      throw error;
+      let cleanupError;
+      try { await cleanup(created); } catch (failure) { cleanupError = failure; }
+      const failure = new Error("Generation stopped while " + stage + ". " + (error.message || String(error)) +
+        (cleanupError ? " Cleanup also failed: " + cleanupError.message : " The unfinished subject copy was removed."));
+      failure.stage = stage;
+      failure.code = error.code;
+      failure.debugInfo = error.debugInfo;
+      throw failure;
     }
   }));
 }

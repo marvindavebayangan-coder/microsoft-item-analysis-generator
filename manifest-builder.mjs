@@ -14,7 +14,7 @@ export function buildManifest(baseAddress) {
   if (!parsed.pathname.endsWith("/")) parsed.pathname += "/";
   const base = parsed.href;
   const appPage = new URL("index.html", base);
-  appPage.searchParams.set("v", "0.2.0");
+  appPage.searchParams.set("v", "0.2.1");
   const page = xmlText(appPage.href);
   const image = size => xmlText(new URL(`icon-${size}.png`, base).href);
   return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
@@ -23,7 +23,7 @@ export function buildManifest(baseAddress) {
  xmlns:bt="http://schemas.microsoft.com/office/officeappbasictypes/1.0"
  xsi:type="TaskPaneApp">
  <Id>${APP_ID}</Id>
- <Version>1.2.0.0</Version>
+ <Version>1.2.1.0</Version>
  <ProviderName>SDO Kalinga ICT</ProviderName>
  <DefaultLocale>en-US</DefaultLocale>
  <DisplayName DefaultValue="Item Analysis Generator"/>
