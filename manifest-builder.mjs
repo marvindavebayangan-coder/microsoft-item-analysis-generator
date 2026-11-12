@@ -14,7 +14,7 @@ export function buildManifest(baseAddress) {
   if (!parsed.pathname.endsWith("/")) parsed.pathname += "/";
   const base = parsed.href;
   const appPage = new URL("index.html", base);
-  appPage.searchParams.set("v", "0.1.0");
+  appPage.searchParams.set("v", "0.2.0");
   const page = xmlText(appPage.href);
   const image = size => xmlText(new URL(`icon-${size}.png`, base).href);
   return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
@@ -23,7 +23,7 @@ export function buildManifest(baseAddress) {
  xmlns:bt="http://schemas.microsoft.com/office/officeappbasictypes/1.0"
  xsi:type="TaskPaneApp">
  <Id>${APP_ID}</Id>
- <Version>1.1.0.0</Version>
+ <Version>1.2.0.0</Version>
  <ProviderName>SDO Kalinga ICT</ProviderName>
  <DefaultLocale>en-US</DefaultLocale>
  <DisplayName DefaultValue="Item Analysis Generator"/>
@@ -56,7 +56,7 @@ export function buildManifest(baseAddress) {
    <bt:Images><bt:Image id="Icon.16" DefaultValue="${image(16)}"/><bt:Image id="Icon.32" DefaultValue="${image(32)}"/><bt:Image id="Icon.80" DefaultValue="${image(80)}"/></bt:Images>
    <bt:Urls><bt:Url id="Taskpane.Url" DefaultValue="${page}"/></bt:Urls>
    <bt:ShortStrings><bt:String id="GetStarted.Title" DefaultValue="Open Item Analysis Generator"/><bt:String id="CommandsGroup.Label" DefaultValue="Item Analysis"/><bt:String id="TaskpaneButton.Label" DefaultValue="Item Analysis Generator"/></bt:ShortStrings>
-   <bt:LongStrings><bt:String id="GetStarted.Description" DefaultValue="On the Home tab, open Item Analysis Generator to prepare a workbook and generate a subject."/><bt:String id="TaskpaneButton.Help" DefaultValue="Generate a subject and check its paper answers."/></bt:LongStrings>
+   <bt:LongStrings><bt:String id="GetStarted.Description" DefaultValue="Open Item Analysis Generator in your workbook containing Original and Generate."/><bt:String id="TaskpaneButton.Help" DefaultValue="Generate a subject from your template and check its paper answers."/></bt:LongStrings>
   </Resources>
  </VersionOverrides>
 </OfficeApp>`;

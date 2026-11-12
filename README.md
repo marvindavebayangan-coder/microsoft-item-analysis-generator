@@ -1,97 +1,86 @@
-# Microsoft Item Analysis Generator — prototype 0.1
+# Microsoft Item Analysis Generator — prototype 0.2
 
-An Excel Online Office.js add-in for the A1 and A3 accounts tested in this project. Program files are hosted on GitHub Pages; workbook contents remain in the teacher's workbook. This version does not connect to Microsoft Forms or send workbook records to a backend.
+An Excel Online Office.js add-in for the A1 and A3 accounts used in this project. Program files are hosted on GitHub Pages. Class records stay in the teacher's workbook; this version has no backend or Microsoft Forms connection.
 
-## Included in this prototype
+## This update
 
-- Prepare Generate and a hidden, 100-question / 100-student Original template in a new workbook.
-- Read the familiar Generate!B5:B12 inputs and the names below Student Names here in column A.
-- Ignore blank names, reject duplicates, and enforce 1–100 questions and 1–100 named students.
-- Copy Original for each subject. Full titles are retained in the workbook header; Excel tab names are shortened to 31 characters and made unique.
-- Create a Manual Checking tab only for names with plain red fill (#FF0000).
-- Compare A–D paper answers with native conditional formatting: matching answers light green, different answers light red, blanks neutral. Grading ignores case and surrounding spaces.
-- Alphabetical student selector with Show all; freeze Manual Checking rows 1–3 and columns A–B.
-- Transfer graded paper answers by student name and permanent item number.
-- Generate native Excel score, percentage, difficulty, discrimination, description, rank, group, and decision formulas following the attached Google Version 14.
-- Delete surplus template question slots in the generated copy and hide columns beyond the report. Excel retains its fixed 16,384-column grid.
-- Convert typed P/p/1 to ✓ while the add-in is open.
-- Preserve the template and existing subject results when preparing an already prepared workbook.
+Open the workbook you prepared with **Original** and **Generate**. The add-in uses those sheets directly; it no longer creates a replacement template or requires a blank workbook.
 
-Sorting commands, Microsoft Forms response collection, quiz connection management, and update/migration commands are later milestones.
+- Detects Original's question columns and student area from its headings. The supplied template has 40 questions and 11 student rows.
+- Copies Original, clears inherited sample answers and old analysis formulas in that copy, and expands or removes item columns and student rows for the actual exam.
+- Preserves the template's name column, student row heights, item heading height, fonts, borders, and rotated headings. Metadata merges adjust to the requested item count. Very short quizzes use one field per row.
+- Uses a minimum item width of 44 screen pixels, as the V14 analysis does, so decimal results and decision words fit. Correct Answers and Student Score retain narrow columns with vertical headings.
+- Adds Description and Decision without overwriting interpretation notes. Existing notes and the group legend move with the resized student area.
+- Reads Generate!B5:B12 and all names below Student Names here in column A. Blank names are ignored; the limits remain 100 questions and 100 students.
+- Pure red name fills (#FF0000) create a linked Manual Checking sheet. A–D grading, answer colors, the student selector, and frozen panes remain available.
+- Rebuilds score, percentage, upper/lower group, difficulty, discrimination, description, rank, and decision formulas using the named roster and the V14 rules. Ties retain the original student order.
+- On **Check Template**, refreshes only the identifiable legacy GUIDE example: keeps its response counts, provides an editable Example N large enough for those counts, and calculates the current descriptions and decisions. Example N is separate from a subject's actual groups.
+- Leaves Original, Generate, and existing subject results intact. A failed generation removes only the new sheets it created.
 
-## Update the hosted files
+The green worksheet drawing labeled Click here to Generate has no assigned add-in action. Use Generate Subject in the task pane.
 
-1. Extract Microsoft_TIA_Generator_Prototype_01.zip.
+## Update GitHub Pages
+
+1. Extract Microsoft_TIA_Template_Update_02.zip.
 2. Open its web folder.
-3. In the GitHub repository, choose Add file > Upload files.
-4. Upload all files inside web directly to the repository root, replacing matching existing files.
-5. Commit changes to main and wait for the GitHub Pages deployment to finish.
+3. In the existing repository, select Add file > Upload files.
+4. Upload **all files inside web** directly to the repository root and replace matching files. Include the new layout.mjs.
+5. Commit to main and wait for the Pages deployment to complete.
 
-GitHub Pages is already configured to publish main, /(root).
+Pages is already configured for main, /(root). This ZIP contains the add-in files; keep using your own workbook in OneDrive.
 
-## Install this version in Excel
+## Open the updated add-in
 
-1. Open the published page with ?v=0.1.0 at the end of its address.
-2. Under Install or update the add-in, download Microsoft_Item_Analysis_Generator.xml.
-3. Open a blank Excel Online workbook with the A3 account.
-4. Use Home > Add-ins > Advanced > Upload My Add-in to upload the new XML.
-5. Open Item Analysis Generator. It uses the same add-in ID as the hosting test, with manifest version 1.1.0.0.
-6. Select Prepare Sample Workbook.
-7. Select Generate Subject.
+1. Open https://marvindavebayangan-coder.github.io/microsoft-item-analysis-generator/?v=0.2.0
+2. Use the XML included at the root of the ZIP, or expand Install or update the add-in on the page to download it.
+3. Open your TIA Prototype workbook in Excel Online.
+4. Close the old task pane and upload the new XML through Home > Add-ins > Advanced > Upload My Add-in.
+5. Confirm the pane says Prototype 0.2, then select Check Template.
 
-The existing hosting-test installation points to the same page, but the updated XML changes its displayed name and pins the current prototype page.
+The add-in ID is unchanged. The manifest version is 1.2.0.0, and every application module uses the 0.2.0 cache key.
 
-## First generation check
+## First Excel test
 
-The sample has 5 questions, 6 student names, and plain red fills on Student 03 and Student 06.
+Use the existing sample: 20 questions in B12 and ten names in A15:A24.
 
-Expected results:
+1. Check Template should report 40 item slots, 11 template student rows, 20 requested questions, and ten students.
+2. Select Generate Subject. The new Math sheet should have students on rows 10–19, items in C:V, Correct Answers in W, and Student Score in X.
+3. The six analysis rows should start at row 20. Interpretation and the color legend should remain below the decision notes.
+4. Check that student rows are visible, old sample P answers are absent, and item and score headings are vertical.
+5. Enter P or 1 in a few answer cells while the pane is open. They should become ✓ and recalculate the scores.
+6. To test mixed mode, change the subject title to Math Mixed and fill two roster names with plain red. Generate again, enter an A–D key and some answers in Manual Checking, then run Grade Paper Answers.
+7. Repeat in the A1 account. After the small example passes, test 100 questions and 100 names.
 
-- Generate remains available.
-- Original exists and is hidden.
-- Sample Math is immediately after Generate.
-- Sample Math - Manual Checking follows the subject.
-- The subject contains exactly 5 item columns, followed by totals, score, rank and group.
-- The paper tab contains Student 03 and Student 06.
-- Paper tab B1 lists Show all and those two names.
-- Paper rows 1–3 and columns A–B are frozen.
+No red names produce a subject sheet only. All-red names produce a paper sheet for the entire roster. Blank paper answer columns are skipped when grading.
 
-Use the B1 dropdown while the add-in is open. Apply Student View can also refresh the selected view.
+## Validation and limits
 
-## Optional paper check after generation succeeds
+Run portable regression checks with:
 
-Enter this small fixture on Manual Checking:
+    node --test tests/*.test.mjs
 
-| Item | Key | Student 03 | Student 06 |
-|---|---|---|---|
-| 1 | A | A | B |
-| 2 | B | B | B |
-| 3 | C | D | C |
-| 4 | D | D | A |
-| 5 | A | leave blank | A |
+The tests cover template detection, shrinking and expansion, merged headings, preservation of the master and notes, clearing hidden sample data, mixed paper grading, item order, selection, formula dependency cycles, duplicate protection, and failed-generation cleanup.
 
-Click Grade Paper Answers from the paper or subject tab.
+The Office adapter used by tests models structural operations; it does not replace Excel Online. Local calculation checks also compare generated formulas with independent expected results. Visual appearance and native behavior in the tenant still need the Excel test above on A3 and A1.
 
-Each paper student should have 3 correct answers and a score of 60%. The remaining four listed students are unmarked, so the whole-roster MPS is provisionally 20%. Finish all marking/submissions before interpreting the item decisions.
+Sorting commands, Microsoft Forms response collection, quiz connection management, and migration of older generated subject layouts are subsequent milestones. Existing registered paper sheets remain usable; this update applies the template layout to newly generated subjects.
 
-## Analysis rules retained from V14
+## Architecture
 
-- Overall % correct uses all named roster students.
-- Difficulty uses upper/lower groups.
-- Default group proportion is 33%, rounded and capped at half the class.
-- Ties use the original student number.
-- Description: D < 0.20 = PI; D < 0.30 = NI; D < 0.40 = GI; otherwise VG.
-- Decision: D < 0.20 = Review; 0.20 ≤ D < 0.30 = Revise; D ≥ 0.30 = Retain.
-- Missing group data yields Review; one student has no upper/lower group statistics.
-- All-correct and all-wrong items have discrimination 0 and therefore Review.
-- Upper answer rows are yellow; Lower answer rows are green; Middle rows retain white.
+- index.html, styles.css, app.mjs: task pane and command handling.
+- domain.mjs: input validation, identifiers, paper grading, and student/item mapping.
+- layout.mjs: template detection, header positions, and analysis formula construction.
+- workbook.mjs: Office.js worksheet copying, resizing, formatting, registry, grading, and edit events.
+- manifest-builder.mjs: manifest with stable app identity and HTTPS source.
+- tests: portable domain and structural regression checks.
 
-## Validation performed
+Workbook settings use the existing TIA.Generator.Registry.v1 key to retain subject and paper sheet IDs. This code uses ExcelApi 1.9 features and does not depend on Office Scripts.
 
-Local checks cover input limits, plain-red detection, duplicate normalization, Excel tab names, item-number mapping, invalid A–D data, a 100-by-100 paper matrix, literal-text handling, JavaScript syntax, and XML resource references.
+The uploaded workbook is the visual source. Google Apps Script V14 remains the functional source for the scoring and decision rules. The original workbook's obsolete calculations are replaced in each generated copy rather than trusted as the scoring engine.
 
-These checks do not establish native Excel runtime behavior. Generation, Excel formula recalculation, pane handling, and conditional formatting still require the A3 and A1 workbook tests. The earlier hosting test established only basic hosted add-in read/write access.
+API references used for this update:
 
-## Reference
-
-The supplied Google Apps Script Version 14 is the functional reference. The older worksheet guide's Reject wording is not used for the prototype's decisions.
+- https://learn.microsoft.com/en-us/javascript/api/excel/excel.range
+- https://learn.microsoft.com/en-us/javascript/api/excel/excel.rangeformat
+- https://learn.microsoft.com/en-us/javascript/api/excel/excel.cellpropertiesformatloadoptions
+- https://learn.microsoft.com/en-us/office/dev/add-ins/excel/excel-add-ins-conditional-formatting

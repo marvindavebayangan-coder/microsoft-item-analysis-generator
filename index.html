@@ -4,21 +4,22 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Microsoft Item Analysis Generator</title>
-  <link rel="stylesheet" href="styles.css?v=0.1.0">
+  <link rel="stylesheet" href="styles.css?v=0.2.0">
   <script src="https://officeapis.public.onecdn.static.microsoft/1/office.js"></script>
-  <script type="module" src="app.mjs?v=0.1.0"></script>
+  <script type="module" src="app.mjs?v=0.2.0"></script>
 </head>
 <body>
   <main>
-    <header><p class="eyebrow">SDO Kalinga ICT · Prototype 0.1</p>
+    <header><p class="eyebrow">SDO Kalinga ICT · Prototype 0.2</p>
       <h1>Item Analysis<br>Generator</h1>
       <p>Create a subject from your roster, then check paper answers alongside its analysis.</p>
       <p id="connection" class="connection">Checking Excel connection…</p>
     </header>
     <section aria-labelledby="generate-title">
       <h2 id="generate-title">Create a subject</h2>
-      <p class="detail">Start with a blank workbook. Preparation adds Generate and a hidden Original template, with sample data for a 5-item mixed exam.</p>
-      <button id="prepare" data-action type="button" disabled>1. Prepare Sample Workbook</button>
+      <p class="detail">Open your template workbook with tabs named Original and Generate. Each subject starts as a copy of your Original layout.</p>
+      <button id="prepare" data-action type="button" disabled>1. Check Template</button>
+      <p class="detail">This also refreshes the supplied GUIDE example to match the decision rules.</p>
       <p class="detail">Edit Generate!B5:B12 and the names in column A. Fill paper students’ name cells with plain red.</p>
       <button id="generate" data-action type="button" disabled>2. Generate Subject</button>
       <p class="detail">Up to 100 questions and 100 students. Blank name cells are ignored.</p>
@@ -41,7 +42,7 @@
       <p id="download-help" class="detail"></p>
       <p class="detail" id="page-address"></p>
     </details>
-    <p class="footer">This prototype covers generation, paper grading, and V14 analysis formulas. Sorting commands and Microsoft Forms integration come in later steps.</p>
+    <p class="footer">Prototype 0.2 uses your workbook template for generation and paper grading. Read the decision notes below each subject’s analysis. Sorting commands and Microsoft Forms integration come in later steps.</p>
   </main>
 </body>
 </html>

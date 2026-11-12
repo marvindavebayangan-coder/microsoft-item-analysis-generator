@@ -1,5 +1,5 @@
-import { buildManifest } from "./manifest-builder.mjs?v=0.1.0";
-import { prepareWorkbook, generateSubject, gradePaper, applyStudentView, registerEvents } from "./workbook.mjs?v=0.1.0";
+import { buildManifest } from "./manifest-builder.mjs?v=0.2.0";
+import { prepareWorkbook, generateSubject, gradePaper, applyStudentView, registerEvents } from "./workbook.mjs?v=0.2.0";
 
 const status = document.getElementById("status");
 const connection = document.getElementById("connection");
@@ -31,7 +31,7 @@ async function perform(label, action) {
   finally { busy = false; enabled(); }
 }
 
-document.getElementById("prepare").addEventListener("click", () => perform("Preparing the sample workbook…", prepareWorkbook));
+document.getElementById("prepare").addEventListener("click", () => perform("Checking Original and Generate…", prepareWorkbook));
 document.getElementById("generate").addEventListener("click", () => perform("Reading the roster and generating the subject…", generateSubject));
 document.getElementById("grade").addEventListener("click", () => perform("Checking paper keys and answers…", gradePaper));
 document.getElementById("view").addEventListener("click", () => perform("Applying the student selection…", applyStudentView));
@@ -47,7 +47,7 @@ try {
     document.body.append(link); link.click(); link.remove();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   });
-  document.getElementById("download-help").textContent = "This XML points to prototype 0.1 at this HTTPS address.";
+  document.getElementById("download-help").textContent = "This XML opens prototype 0.2 at this HTTPS address.";
 } catch (error) {
   document.getElementById("download-help").textContent = "Publish these files at an HTTPS address to download the XML.";
 }
@@ -56,7 +56,7 @@ const timer = setTimeout(() => {
   if (!ready) {
     document.getElementById("install").open = true;
     connection.textContent = "Open this add-in in Excel";
-    message("The page is available. Download its XML and open the add-in from a blank Excel Online workbook.");
+    message("Download its XML, then open the add-in in your workbook containing Original and Generate.");
   }
 }, 7000);
 
@@ -69,7 +69,7 @@ if (typeof Office === "undefined") {
     if (info.host !== Office.HostType.Excel) {
       document.getElementById("install").open = true;
       connection.textContent = "Open this add-in in Excel";
-      message("Download the XML and open this add-in in a blank Excel Online workbook.");
+      message("Download the XML and open this add-in in your template workbook in Excel Online.");
       return;
     }
     if (!Office.context.requirements.isSetSupported("ExcelApi", "1.9")) {
@@ -78,7 +78,7 @@ if (typeof Office === "undefined") {
       return;
     }
     ready = true; enabled(); connection.textContent = "Connected to Excel"; connection.dataset.ready = "true";
-    message("Ready. In a blank workbook, select Prepare Sample Workbook.");
+    message("Ready. Open your workbook with Original and Generate, then select Check Template.");
     try {
       await registerEvents(value => { if (!busy) message(value, "failed"); });
     } catch (error) {
