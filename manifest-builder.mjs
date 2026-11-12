@@ -13,7 +13,9 @@ export function buildManifest(baseAddress) {
   }
   if (!parsed.pathname.endsWith("/")) parsed.pathname += "/";
   const base = parsed.href;
-  const page = xmlText(new URL("index.html", base).href);
+  const appPage = new URL("index.html", base);
+  appPage.searchParams.set("v", "0.1.0");
+  const page = xmlText(appPage.href);
   const image = size => xmlText(new URL(`icon-${size}.png`, base).href);
   return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <OfficeApp xmlns="http://schemas.microsoft.com/office/appforoffice/1.1"
@@ -21,17 +23,17 @@ export function buildManifest(baseAddress) {
  xmlns:bt="http://schemas.microsoft.com/office/officeappbasictypes/1.0"
  xsi:type="TaskPaneApp">
  <Id>${APP_ID}</Id>
- <Version>1.0.0.0</Version>
+ <Version>1.1.0.0</Version>
  <ProviderName>SDO Kalinga ICT</ProviderName>
  <DefaultLocale>en-US</DefaultLocale>
- <DisplayName DefaultValue="TIA Hosting Test"/>
- <Description DefaultValue="A pilot test of Excel workbook access from a hosted add-in."/>
+ <DisplayName DefaultValue="Item Analysis Generator"/>
+ <Description DefaultValue="Generate subjects, grade paper answers, and calculate V14 item analysis."/>
  <IconUrl DefaultValue="${image(32)}"/>
  <HighResolutionIconUrl DefaultValue="${image(64)}"/>
  <SupportUrl DefaultValue="${page}"/>
  <AppDomains><AppDomain>${xmlText(parsed.origin)}</AppDomain></AppDomains>
  <Hosts><Host Name="Workbook"/></Hosts>
- <Requirements><Sets DefaultMinVersion="1.1"><Set Name="ExcelApi"/></Sets></Requirements>
+ <Requirements><Sets DefaultMinVersion="1.9"><Set Name="ExcelApi"/></Sets></Requirements>
  <DefaultSettings><SourceLocation DefaultValue="${page}"/></DefaultSettings>
  <Permissions>ReadWriteDocument</Permissions>
  <VersionOverrides xmlns="http://schemas.microsoft.com/office/taskpaneappversionoverrides" xsi:type="VersionOverridesV1_0">
@@ -53,8 +55,8 @@ export function buildManifest(baseAddress) {
   <Resources>
    <bt:Images><bt:Image id="Icon.16" DefaultValue="${image(16)}"/><bt:Image id="Icon.32" DefaultValue="${image(32)}"/><bt:Image id="Icon.80" DefaultValue="${image(80)}"/></bt:Images>
    <bt:Urls><bt:Url id="Taskpane.Url" DefaultValue="${page}"/></bt:Urls>
-   <bt:ShortStrings><bt:String id="GetStarted.Title" DefaultValue="Open the TIA hosting test"/><bt:String id="CommandsGroup.Label" DefaultValue="Item Analysis"/><bt:String id="TaskpaneButton.Label" DefaultValue="TIA Hosting Test"/></bt:ShortStrings>
-   <bt:LongStrings><bt:String id="GetStarted.Description" DefaultValue="On the Home tab, open TIA Hosting Test to check workbook access."/><bt:String id="TaskpaneButton.Help" DefaultValue="Open the hosted test and write a message into a blank workbook."/></bt:LongStrings>
+   <bt:ShortStrings><bt:String id="GetStarted.Title" DefaultValue="Open Item Analysis Generator"/><bt:String id="CommandsGroup.Label" DefaultValue="Item Analysis"/><bt:String id="TaskpaneButton.Label" DefaultValue="Item Analysis Generator"/></bt:ShortStrings>
+   <bt:LongStrings><bt:String id="GetStarted.Description" DefaultValue="On the Home tab, open Item Analysis Generator to prepare a workbook and generate a subject."/><bt:String id="TaskpaneButton.Help" DefaultValue="Generate a subject and check its paper answers."/></bt:LongStrings>
   </Resources>
  </VersionOverrides>
 </OfficeApp>`;

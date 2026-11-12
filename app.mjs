@@ -1,94 +1,88 @@
-import { buildManifest } from "./manifest-builder.mjs";
+import { buildManifest } from "./manifest-builder.mjs?v=0.1.0";
+import { prepareWorkbook, generateSubject, gradePaper, applyStudentView, registerEvents } from "./workbook.mjs?v=0.1.0";
 
-const download = document.getElementById("download");
-const run = document.getElementById("run");
 const status = document.getElementById("status");
 const connection = document.getElementById("connection");
-const errorDetails = document.getElementById("error");
-const baseAddress = new URL("./", window.location.href).href;
-document.getElementById("page-address").textContent = baseAddress;
+const errorBox = document.getElementById("error-details");
+const errorText = document.getElementById("error");
+const buttons = [...document.querySelectorAll("[data-action]")];
+let ready = false, busy = false;
+const base = new URL("./", window.location.href).href;
+document.getElementById("page-address").textContent = base;
 
-function setStatus(message, state = "") {
-  status.textContent = message;
+function message(value, state = "") {
+  status.textContent = value;
   status.dataset.state = state;
 }
 
-try {
-  const manifest = buildManifest(baseAddress);
-  download.disabled = false;
-  document.getElementById("download-help").textContent = "The XML file will use this page’s actual HTTPS address.";
-  download.addEventListener("click", () => {
-    const url = URL.createObjectURL(new Blob([manifest], { type: "application/xml;charset=utf-8" }));
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = "TIA_Hosting_Test.xml";
-    document.body.append(anchor);
-    anchor.click();
-    anchor.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
-  });
-} catch (error) {
-  document.getElementById("download-help").textContent = "Host these files at an HTTPS address before downloading the add-in XML.";
+function enabled() { for (const button of buttons) button.disabled = !ready || busy; }
+
+function failed(error) {
+  message(error.message || String(error), "failed");
+  errorText.textContent = [error.code, error.debugInfo?.errorLocation, error.message || String(error)].filter(Boolean).join("\n");
+  errorBox.hidden = false;
 }
 
-let excelReady = false;
-const connectionTimer = setTimeout(() => {
-  if (!excelReady) {
-    connection.textContent = "Open the add-in from Excel to connect";
-    setStatus("This page has loaded. To finish the workbook test, upload its XML file in Excel and open TIA Hosting Test.");
+async function perform(label, action) {
+  if (!ready || busy) return;
+  busy = true; enabled(); errorBox.hidden = true;
+  message(label);
+  try { message(await action(), "passed"); } catch (error) { failed(error); }
+  finally { busy = false; enabled(); }
+}
+
+document.getElementById("prepare").addEventListener("click", () => perform("Preparing the sample workbook…", prepareWorkbook));
+document.getElementById("generate").addEventListener("click", () => perform("Reading the roster and generating the subject…", generateSubject));
+document.getElementById("grade").addEventListener("click", () => perform("Checking paper keys and answers…", gradePaper));
+document.getElementById("view").addEventListener("click", () => perform("Applying the student selection…", applyStudentView));
+
+try {
+  const xml = buildManifest(base);
+  const download = document.getElementById("download");
+  download.disabled = false;
+  download.addEventListener("click", () => {
+    const url = URL.createObjectURL(new Blob([xml], { type: "application/xml;charset=utf-8" }));
+    const link = document.createElement("a");
+    link.href = url; link.download = "Microsoft_Item_Analysis_Generator.xml";
+    document.body.append(link); link.click(); link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  });
+  document.getElementById("download-help").textContent = "This XML points to prototype 0.1 at this HTTPS address.";
+} catch (error) {
+  document.getElementById("download-help").textContent = "Publish these files at an HTTPS address to download the XML.";
+}
+
+const timer = setTimeout(() => {
+  if (!ready) {
+    document.getElementById("install").open = true;
+    connection.textContent = "Open this add-in in Excel";
+    message("The page is available. Download its XML and open the add-in from a blank Excel Online workbook.");
   }
 }, 7000);
 
 if (typeof Office === "undefined") {
-  clearTimeout(connectionTimer);
-  connection.textContent = "Office library unavailable";
-  setStatus("The Microsoft Office library did not load. Check access to officeapis.public.onecdn.static.microsoft, then reload.", "failed");
+  clearTimeout(timer); connection.textContent = "Office library unavailable";
+  message("The Microsoft Office library did not load. Reload the page and check the connection.", "failed");
 } else {
-  Office.onReady().then(info => {
-    clearTimeout(connectionTimer);
+  Office.onReady().then(async info => {
+    clearTimeout(timer);
     if (info.host !== Office.HostType.Excel) {
-      connection.textContent = "Open the add-in from Excel to connect";
-      setStatus("The page is ready. Download its XML, upload it in Excel, and open TIA Hosting Test.");
+      document.getElementById("install").open = true;
+      connection.textContent = "Open this add-in in Excel";
+      message("Download the XML and open this add-in in a blank Excel Online workbook.");
       return;
     }
-    excelReady = true;
-    connection.textContent = "Connected to Excel";
-    run.disabled = false;
-    setStatus("Connected. Use a blank workbook, then select Run Excel test.");
-  }).catch(error => {
-    clearTimeout(connectionTimer);
-    connection.textContent = "Connection failed";
-    setStatus("Excel initialization failed.", "failed");
-    errorDetails.hidden = false;
-    errorDetails.textContent = error.message || String(error);
-  });
+    if (!Office.context.requirements.isSetSupported("ExcelApi", "1.9")) {
+      connection.textContent = "Excel client needs an update";
+      message("This prototype requires ExcelApi 1.9. Open the workbook in current Excel Online.", "failed");
+      return;
+    }
+    ready = true; enabled(); connection.textContent = "Connected to Excel"; connection.dataset.ready = "true";
+    message("Ready. In a blank workbook, select Prepare Sample Workbook.");
+    try {
+      await registerEvents(value => { if (!busy) message(value, "failed"); });
+    } catch (error) {
+      message("Ready. Automatic edit handling could not start; Apply Student View is still available. " + (error.message || error), "failed");
+    }
+  }).catch(error => { clearTimeout(timer); failed(error); });
 }
-
-run.addEventListener("click", async () => {
-  if (!excelReady) return;
-  run.disabled = true;
-  errorDetails.hidden = true;
-  errorDetails.textContent = "";
-  setStatus("Writing a test message and reading it back…");
-  try {
-    const actual = await Excel.run(async context => {
-      const cell = context.workbook.worksheets.getActiveWorksheet().getRange("A1");
-      cell.values = [["Hosted add-in works!"]];
-      cell.format.fill.color = "#E2F0D9";
-      cell.format.font.color = "#176443";
-      cell.format.font.bold = true;
-      await context.sync();
-      cell.load("values");
-      await context.sync();
-      return cell.values[0][0];
-    });
-    if (actual !== "Hosted add-in works!") throw new Error("The value read from Excel did not match the test message.");
-    setStatus("Passed: Excel saved the message in cell A1 and returned the same value.", "passed");
-  } catch (error) {
-    setStatus("The workbook test failed. Please report the message below.", "failed");
-    errorDetails.hidden = false;
-    errorDetails.textContent = [error.code, error.message || String(error)].filter(Boolean).join("\n");
-  } finally {
-    run.disabled = false;
-  }
-});

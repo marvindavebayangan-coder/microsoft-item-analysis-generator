@@ -3,34 +3,45 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>TIA Hosting Test</title>
-  <link rel="stylesheet" href="styles.css">
+  <title>Microsoft Item Analysis Generator</title>
+  <link rel="stylesheet" href="styles.css?v=0.1.0">
   <script src="https://officeapis.public.onecdn.static.microsoft/1/office.js"></script>
-  <script type="module" src="app.mjs"></script>
+  <script type="module" src="app.mjs?v=0.1.0"></script>
 </head>
 <body>
   <main>
-    <p class="eyebrow">Microsoft Item Analysis Generator</p>
-    <h1>Hosted add-in test</h1>
-    <p>Check whether this hosted add-in can connect to Excel and write a test message.</p>
-    <section aria-labelledby="install-title">
-      <h2 id="install-title">1. Install in Excel</h2>
-      <p>After this page is published on GitHub Pages, download its XML file. In a blank Excel Online workbook, choose <strong>Home → Add-ins → Advanced → Upload My Add-in</strong>.</p>
-      <button id="download" type="button" disabled>Download XML file</button>
+    <header><p class="eyebrow">SDO Kalinga ICT · Prototype 0.1</p>
+      <h1>Item Analysis<br>Generator</h1>
+      <p>Create a subject from your roster, then check paper answers alongside its analysis.</p>
+      <p id="connection" class="connection">Checking Excel connection…</p>
+    </header>
+    <section aria-labelledby="generate-title">
+      <h2 id="generate-title">Create a subject</h2>
+      <p class="detail">Start with a blank workbook. Preparation adds Generate and a hidden Original template, with sample data for a 5-item mixed exam.</p>
+      <button id="prepare" data-action type="button" disabled>1. Prepare Sample Workbook</button>
+      <p class="detail">Edit Generate!B5:B12 and the names in column A. Fill paper students’ name cells with plain red.</p>
+      <button id="generate" data-action type="button" disabled>2. Generate Subject</button>
+      <p class="detail">Up to 100 questions and 100 students. Blank name cells are ignored.</p>
+    </section>
+    <section aria-labelledby="paper-title">
+      <h2 id="paper-title">Check paper answers</h2>
+      <p class="detail">In Manual Checking, enter the printed A–D key in column B and answers below each student’s name. Colors compare answers immediately.</p>
+      <button id="grade" data-action type="button" disabled>Grade Paper Answers</button>
+      <p class="detail">Use B1 to select a student or Show all. Keep this add-in open for automatic column selection and P/p/1 conversion to ✓.</p>
+      <button id="view" data-action class="secondary" type="button" disabled>Apply Student View</button>
+    </section>
+    <section class="status-box" aria-label="Operation result">
+      <p id="status" role="status" aria-live="polite">Waiting for Excel…</p>
+      <details id="error-details" hidden><summary>Error details</summary><pre id="error"></pre></details>
+    </section>
+    <details id="install" class="install">
+      <summary>Install or update the add-in</summary>
+      <p class="detail">Download the XML, then use Excel Online → Home → Add-ins → Advanced → Upload My Add-in.</p>
+      <button id="download" class="secondary" type="button" disabled>Download add-in XML</button>
       <p id="download-help" class="detail"></p>
-    </section>
-    <section aria-labelledby="test-title">
-      <h2 id="test-title">2. Test workbook access</h2>
-      <p>Open <strong>TIA Hosting Test</strong> in Excel, then run this test. It writes <strong>Hosted add-in works!</strong> into cell <strong>A1</strong> of the active sheet and reads the result back.</p>
-      <button id="run" type="button" disabled>Run Excel test</button>
-      <p id="status" role="status" aria-live="polite">Checking the Excel connection…</p>
-      <pre id="error" hidden></pre>
-    </section>
-    <dl>
-      <dt>Page address</dt><dd id="page-address"></dd>
-      <dt>Excel connection</dt><dd id="connection">Waiting</dd>
-    </dl>
-    <p class="detail">Run this test separately with a known A1 account and a known A3 account. This page does not detect your license.</p>
+      <p class="detail" id="page-address"></p>
+    </details>
+    <p class="footer">This prototype covers generation, paper grading, and V14 analysis formulas. Sorting commands and Microsoft Forms integration come in later steps.</p>
   </main>
 </body>
 </html>
