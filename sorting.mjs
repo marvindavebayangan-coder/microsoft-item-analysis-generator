@@ -1,4 +1,4 @@
-import { itemOrder, key, text } from "./domain.mjs?v=0.3.0";
+import { itemOrder, key, text } from "./domain.mjs?v=0.3.1";
 
 export const identityOrder = order => order.every((source, destination) => source === destination);
 export const reorderRows = (rows, order) => order.map(source => rows[source].slice());
@@ -88,4 +88,32 @@ export function verifyLiteralCells(actual, expected, mask) {
       throw new Error("The sort could not verify that the names, original IDs and recorded answers stayed matched.");
     }
   }
+}
+
+// Excel may normalize function/reference case or redundant zero offsets. String
+// literals keep their original contents, including spaces and letter case.
+export function normalizedFormula(value) {
+  return String(value ?? "").split(/("(?:[^"]|"")*")/g).map((part, i) => i % 2 ? part :
+    part.replace(/\s/g, "").toUpperCase().replace(/([RC])\[[-+]?0\]/g, "$1")).join("");
+}
+
+export function verifyFormulaCells(actual, actualMask, expected, expectedMask) {
+  for (let r = 0; r < expectedMask.length; r++) for (let c = 0; c < expectedMask[r].length; c++) {
+    if (actualMask[r][c] !== expectedMask[r][c]) {
+      throw new Error("A calculated cell changed between a formula and plain text. The sort was not accepted.");
+    }
+    if (expectedMask[r][c] && normalizedFormula(actual[r][c]) !== normalizedFormula(expected[r][c])) {
+      throw new Error("A sorted formula did not keep its expected references. The sort was not accepted.");
+    }
+  }
+}
+
+// Recover only the generator's known label expressions from 0.3.0. An arbitrary
+// literal beginning with '=' or a teacher's intentional label override is kept.
+export function labelRepairMask(values, mask, a1, relative) {
+  return values.map((row, r) => row.map((value, c) => {
+    if (mask[r][c] || typeof value !== "string") return false;
+    const candidate = normalizedFormula(value.replace(/^'(?==)/, ""));
+    return candidate === normalizedFormula(a1[r][c]) || candidate === normalizedFormula(relative[r][c]);
+  }));
 }

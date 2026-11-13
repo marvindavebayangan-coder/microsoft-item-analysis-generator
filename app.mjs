@@ -1,6 +1,6 @@
-import { buildManifest } from "./manifest-builder.mjs?v=0.3.0";
+import { buildManifest } from "./manifest-builder.mjs?v=0.3.1";
 import { prepareWorkbook, generateSubject, gradePaper, applyStudentView, sortParticipantsByRank,
-  sortItemsByPercentCorrect, restoreOriginalItemOrder, registerEvents } from "./workbook.mjs?v=0.3.0";
+  sortItemsByPercentCorrect, restoreOriginalItemOrder, registerEvents } from "./workbook.mjs?v=0.3.1";
 
 const status = document.getElementById("status");
 const connection = document.getElementById("connection");
@@ -54,7 +54,7 @@ try {
     document.body.append(link); link.click(); link.remove();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   });
-  document.getElementById("download-help").textContent = "This XML opens prototype 0.3.0 at this HTTPS address.";
+  document.getElementById("download-help").textContent = "This XML opens prototype 0.3.1 at this HTTPS address.";
 } catch (error) {
   document.getElementById("download-help").textContent = "Publish these files at an HTTPS address to download the XML.";
 }

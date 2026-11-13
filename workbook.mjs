@@ -1,6 +1,7 @@
-import { CHECK, column, key, literal, text, isCheck, readInput, uniqueTabName, itemOrder, paperGrades } from "./domain.mjs?v=0.3.0";
-import { detectTemplate, subjectLayout, headerPlan, analysisFormulas, MIN_ITEM_WIDTH, GUIDE_LINES } from "./layout.mjs?v=0.3.0";
-import { participantOrder, questionOrder, identityOrder, reorderRows, reorderColumns, formulaMask, formulaRuns, verifyLiteralCells } from "./sorting.mjs?v=0.3.0";
+import { CHECK, column, key, literal, text, isCheck, readInput, uniqueTabName, itemOrder, paperGrades } from "./domain.mjs?v=0.3.1";
+import { detectTemplate, subjectLayout, headerPlan, analysisFormulas, analysisLabels, MIN_ITEM_WIDTH, GUIDE_LINES } from "./layout.mjs?v=0.3.1";
+import { participantOrder, questionOrder, identityOrder, reorderRows, reorderColumns, formulaMask, formulaRuns,
+  verifyLiteralCells, verifyFormulaCells, labelRepairMask } from "./sorting.mjs?v=0.3.1";
 
 const REGISTRY = "TIA.Generator.Registry.v1";
 const MAX_COLUMNS = 16384;
@@ -360,6 +361,9 @@ function renderAnalysis(sheet, data, cells) {
   });
   sheet.getRangeByIndexes(footer - 1, 0, 6, 2).format.wrapText = true;
   const results = sheet.getRangeByIndexes(footer - 1, 2, 6, q);
+  // A formula entered into a Text-formatted cell can remain literal text in Excel.
+  // Normalize inherited formats before writing; labels must stay formula cells.
+  results.numberFormat = Array.from({ length: 6 }, () => Array(q).fill("General"));
   results.formulas = a.itemRows;
   results.format.font.name = "Arial";
   results.format.horizontalAlignment = "Center";
@@ -370,7 +374,7 @@ function renderAnalysis(sheet, data, cells) {
   sheet.getRangeByIndexes(footer + 1, 2, 2, q).format.font.size = 10;
   sheet.getRangeByIndexes(footer + 1, 2, 4, q).format.textOrientation = 0;
   sheet.getRangeByIndexes(footer + 3, 2, 2, q).format.font.size = 9;
-  sheet.getRangeByIndexes(footer + 3, 2, 2, q).numberFormat = [Array(q).fill("@"), Array(q).fill("@")];
+  sheet.getRangeByIndexes(footer + 3, 2, 2, q).numberFormat = [Array(q).fill("General"), Array(q).fill("General")];
   sheet.getRange(totalL + footer + ":" + scoreL + footer).merge();
   sheet.getRange(totalL + footer).values = [["Mean Percentage Score"]];
   sheet.getRange(totalL + footer + ":" + scoreL + footer).format.wrapText = true;
@@ -551,16 +555,18 @@ async function sortingSubject(context) {
 function at(sheet, rect) { return sheet.getRangeByIndexes(rect.row, rect.col, rect.height, rect.width); }
 
 async function sortSnapshot(context, sheet, rect) {
-  const range = at(sheet, rect).load("values,formulas,formulasR1C1");
+  const range = at(sheet, rect).load("values,formulas,formulasR1C1,numberFormat");
   const formulas = range.getSpecialCellsOrNullObject("Formulas").load("address");
   await context.sync();
-  return { values: range.values, a1: range.formulas, r1c1: range.formulasR1C1,
+  return { values: range.values, a1: range.formulas, r1c1: range.formulasR1C1, formats: range.numberFormat,
     mask: formulaMask(formulas.isNullObject ? "" : formulas.address, rect.row, rect.col, rect.height, rect.width) };
 }
 
-function writeSortFormulas(sheet, rect, matrix, mask) {
+function writeSortFormulas(sheet, rect, matrix, mask, formats) {
   for (const run of formulaRuns(matrix, mask)) {
-    sheet.getRangeByIndexes(rect.row + run.row, rect.col + run.col, 1, run.formulas[0].length).formulasR1C1 = run.formulas;
+    const range = sheet.getRangeByIndexes(rect.row + run.row, rect.col + run.col, 1, run.formulas[0].length);
+    range.numberFormat = [formats[run.row].slice(run.col, run.col + run.formulas[0].length).map(value => value === "@" ? "General" : value)];
+    range.formulasR1C1 = run.formulas;
   }
 }
 
@@ -571,9 +577,13 @@ async function restoreSortBackup(sheetId, backupId, rect, snapshot) {
       const sheet = context.workbook.worksheets.getItem(sheetId);
       const backup = context.workbook.worksheets.getItem(backupId);
       at(sheet, rect).copyFrom(at(backup, rect), "All");
-      writeSortFormulas(sheet, rect, snapshot.r1c1, snapshot.mask);
+      writeSortFormulas(sheet, rect, snapshot.r1c1, snapshot.mask, snapshot.formats);
+      // Restore the original appearance after formulas have been parsed safely.
+      at(sheet, rect).numberFormat = snapshot.formats;
       sheet.getUsedRange().calculate();
-      await context.sync();
+      const restoredSnapshot = await sortSnapshot(context, sheet, rect);
+      verifyLiteralCells(restoredSnapshot.values, snapshot.values, snapshot.mask);
+      verifyFormulaCells(restoredSnapshot.r1c1, restoredSnapshot.mask, snapshot.r1c1, snapshot.mask);
       restored = true;
       try { backup.delete(); await context.sync(); }
       catch (error) { detail = "The original table was restored; the temporary backup could not be removed."; }
@@ -594,6 +604,7 @@ async function restoreSortBackup(sheetId, backupId, rect, snapshot) {
 
 async function sortWithBackup(context, target, rect, original, expected, action) {
   const backupName = uniqueTabName("TIA Sort Backup", target.names);
+  target.names.push(backupName);
   let backup, backupId = "", ready = false, started = false, stage = "creating a sort backup";
   try {
     backup = context.workbook.worksheets.add(backupName);
@@ -608,9 +619,9 @@ async function sortWithBackup(context, target, rect, original, expected, action)
     await action(value => { stage = value; });
     stage = "verifying the sorted names, item IDs and answers";
     target.sheet.getUsedRange().calculate();
-    const result = at(target.sheet, rect).load("values");
-    await context.sync();
+    const result = await sortSnapshot(context, target.sheet, rect);
     verifyLiteralCells(result.values, expected.values, expected.mask);
+    verifyFormulaCells(result.r1c1, result.mask, expected.r1c1, expected.mask);
   } catch (error) {
     let recovery = "The subject table was not changed.";
     if (ready && started) {
@@ -635,43 +646,66 @@ async function sortWithBackup(context, target, rect, original, expected, action)
   }
 }
 
+async function repairAnalysisLabels(context, target) {
+  const { sheet, layout: l } = target;
+  const rect = { row: l.footer + 3, col: 2, height: 2, width: l.questions };
+  const snapshot = await sortSnapshot(context, sheet, rect);
+  const a1 = Array.from({ length: 2 }, (_, r) => Array.from({ length: l.questions }, (_, c) => analysisLabels(column(c + 3) + (l.footer + 3))[r]));
+  const relative = [Array(l.questions).fill(analysisLabels("R[-1]C")[0]), Array(l.questions).fill(analysisLabels("R[-2]C")[1])];
+  const repairs = labelRepairMask(snapshot.values, snapshot.mask, a1, relative);
+  if (!repairs.some(row => row.some(Boolean))) return "";
+  const expected = { values: snapshot.values, mask: snapshot.mask.map((row, r) => row.map((value, c) => value || repairs[r][c])),
+    r1c1: snapshot.r1c1.map((row, r) => row.map((value, c) => repairs[r][c] ? relative[r][c] : value)) };
+  const warning = await sortWithBackup(context, target, rect, snapshot, expected, async progress => {
+    progress("repairing Description and Decision formulas stored as text");
+    writeSortFormulas(sheet, rect, expected.r1c1, repairs, snapshot.formats);
+    await context.sync();
+  });
+  return "Repaired Description and Decision formulas stored as text. " + warning;
+}
+
 export async function sortParticipantsByRank() {
   return guarded(async () => Excel.run(async context => {
     const target = await sortingSubject(context), { sheet, layout: l } = target;
+    const repaired = await repairAnalysisLabels(context, target);
     const rect = { row: 9, col: 0, height: l.students, width: target.width };
     const snapshot = await sortSnapshot(context, sheet, rect);
     const order = participantOrder(snapshot.values.map(row => row[0]), snapshot.values.map(row => row[1]), snapshot.values.map(row => row[l.rank - 1]));
-    if (identityOrder(order)) return "Participants in " + sheet.name + " are already in rank order.";
+    if (identityOrder(order)) return repaired + "Participants in " + sheet.name + " are already in rank order.";
     for (const index of [l.total - 1, l.score - 1, l.rank - 1, l.group - 1]) {
       if (snapshot.mask.some(row => !row[index])) throw new Error("Some score, rank or group formulas are missing. Restore those generated formulas before sorting participants.");
     }
-    const expected = { values: reorderRows(snapshot.values, order), mask: reorderRows(snapshot.mask, order) };
+    const expected = { values: reorderRows(snapshot.values, order), mask: reorderRows(snapshot.mask, order), r1c1: reorderRows(snapshot.r1c1, order) };
+    for (let r = 0; r < l.students; r++) for (const c of [l.total - 1, l.score - 1, l.rank - 1, l.group - 1]) expected.r1c1[r][c] = snapshot.r1c1[r][c];
     const sortedFormulas = reorderRows(snapshot.r1c1, order);
+    const formats = reorderRows(snapshot.formats, order);
     const warning = await sortWithBackup(context, target, rect, snapshot, expected, async progress => {
       progress("sorting participants by Analysis Rank");
       at(sheet, rect).sort.apply([{ key: l.rank - 1, ascending: true, sortOn: "Value" }, { key: 1, ascending: true, sortOn: "Value" }], false, false, "Rows");
-      writeSortFormulas(sheet, rect, sortedFormulas, expected.mask);
+      writeSortFormulas(sheet, rect, sortedFormulas, expected.mask, formats);
       // These formulas belong to row positions, rather than to the moved person.
       sheet.getRangeByIndexes(9, l.total - 1, l.students, 2).formulas = snapshot.a1.map(row => row.slice(l.total - 1, l.score));
       sheet.getRangeByIndexes(9, l.rank - 1, l.students, 2).formulas = snapshot.a1.map(row => row.slice(l.rank - 1, l.group));
       await context.sync();
     });
-    return "Sorted participants in " + sheet.name + " by Analysis Rank, highest score first. Original Student # values were kept." + warning;
+    return repaired + "Sorted participants in " + sheet.name + " by Analysis Rank, highest score first. Original Student # values were kept." + warning;
   }));
 }
 
 async function reorderSubjectItems(byPercent) {
   return guarded(async () => Excel.run(async context => {
     const target = await sortingSubject(context), { sheet, layout: l } = target;
+    const repaired = await repairAnalysisLabels(context, target);
     const rect = { row: 8, col: 2, height: l.students + 7, width: l.questions };
     const snapshot = await sortSnapshot(context, sheet, rect);
     const ids = itemOrder(snapshot.values[0], l.questions);
     const order = questionOrder(ids, snapshot.values[l.students + 2], byPercent);
-    if (identityOrder(order)) return "Items in " + sheet.name + " are already in " + (byPercent ? "highest-to-lowest % correct" : "original item-number") + " order.";
-    const expected = { values: reorderColumns(snapshot.values, order), mask: reorderColumns(snapshot.mask, order) };
+    if (identityOrder(order)) return repaired + "Items in " + sheet.name + " are already in " + (byPercent ? "highest-to-lowest % correct" : "original item-number") + " order.";
+    const expected = { values: reorderColumns(snapshot.values, order), mask: reorderColumns(snapshot.mask, order), r1c1: reorderColumns(snapshot.r1c1, order) };
     expected.values[0] = order.map(i => ids[i]);
     expected.mask[0].fill(false);
     const sortedFormulas = reorderColumns(snapshot.r1c1, order);
+    const formats = reorderColumns(snapshot.formats, order);
     const fields = byPercent ? [{ key: l.students + 2, ascending: false, sortOn: "Value" }, { key: 0, ascending: true, sortOn: "Value" }] :
       [{ key: 0, ascending: true, sortOn: "Value" }];
     const warning = await sortWithBackup(context, target, rect, snapshot, expected, async progress => {
@@ -680,10 +714,10 @@ async function reorderSubjectItems(byPercent) {
       sheet.getRangeByIndexes(8, 2, 1, l.questions).values = [ids];
       at(sheet, rect).sort.apply(fields, false, false, "Columns");
       sheet.getRangeByIndexes(8, 2, 1, l.questions).values = [expected.values[0]];
-      writeSortFormulas(sheet, rect, sortedFormulas, expected.mask);
+      writeSortFormulas(sheet, rect, sortedFormulas, expected.mask, formats);
       await context.sync();
     });
-    return (byPercent ? "Sorted items in " + sheet.name + " from highest to lowest % correct. Ties use item number." :
+    return repaired + (byPercent ? "Sorted items in " + sheet.name + " from highest to lowest % correct. Ties use item number." :
       "Restored the original item-number order in " + sheet.name + ".") + warning;
   }));
 }

@@ -1,4 +1,4 @@
-import { CHECK, column, key, itemOrder } from "./domain.mjs?v=0.3.0";
+import { CHECK, column, key, itemOrder } from "./domain.mjs?v=0.3.1";
 
 const compact = value => key(value).replace(/[^a-z0-9]/g, "");
 export const FIRST_STUDENT = 10;
@@ -76,6 +76,13 @@ export function headerPlan(questions) {
   return { blocks, cells, score, scoreHeaderRow: questions >= 6 ? 6 : 9 };
 }
 
+export function analysisLabels(discrimination) {
+  return [
+    `=IF(ISNUMBER(${discrimination}),IF(${discrimination}<0.2,"PI",IF(${discrimination}<0.3,"NI",IF(${discrimination}<0.4,"GI","VG"))),"")`,
+    `=IF(ISNUMBER(${discrimination}),IF(${discrimination}<0.2,"Review",IF(${discrimination}<0.3,"Revise","Retain")),"Review")`
+  ];
+}
+
 export function analysisFormulas(questions, students, cells) {
   const layout = subjectLayout(questions, students);
   const { last, footer, total, rank, group } = layout;
@@ -98,8 +105,9 @@ export function analysisFormulas(questions, students, cells) {
     itemRows[1].push(`=IF(${count}=0,"",${c}${footer}/${count})`);
     itemRows[2].push(`=IF(${size}=0,"",(${upper}+${lower})/(2*${size}))`);
     itemRows[3].push(`=IF(${size}=0,"",ROUND((${upper}-${lower})/${size},10))`);
-    itemRows[4].push(`=IF(ISNUMBER(${d}),IF(${d}<0.2,"PI",IF(${d}<0.3,"NI",IF(${d}<0.4,"GI","VG"))),"")`);
-    itemRows[5].push(`=IF(ISNUMBER(${d}),IF(${d}<0.2,"Review",IF(${d}<0.3,"Revise","Retain")),"Review")`);
+    const [description, decision] = analysisLabels(d);
+    itemRows[4].push(description);
+    itemRows[5].push(decision);
   }
   return { ...layout, scores, ranks, itemRows,
     groupSize: `=IF(${count}<2,0,MAX(1,MIN(INT(${count}/2),ROUND(${count}*$${groupL}$6,0))))`,
