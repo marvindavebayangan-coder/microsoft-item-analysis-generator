@@ -1,5 +1,6 @@
-import { CHECK, column, key, literal, text, isCheck, readInput, uniqueTabName, itemOrder, paperGrades } from "./domain.mjs?v=0.2.2";
-import { detectTemplate, subjectLayout, headerPlan, analysisFormulas, MIN_ITEM_WIDTH, GUIDE_LINES } from "./layout.mjs?v=0.2.2";
+import { CHECK, column, key, literal, text, isCheck, readInput, uniqueTabName, itemOrder, paperGrades } from "./domain.mjs?v=0.3.0";
+import { detectTemplate, subjectLayout, headerPlan, analysisFormulas, MIN_ITEM_WIDTH, GUIDE_LINES } from "./layout.mjs?v=0.3.0";
+import { participantOrder, questionOrder, identityOrder, reorderRows, reorderColumns, formulaMask, formulaRuns, verifyLiteralCells } from "./sorting.mjs?v=0.3.0";
 
 const REGISTRY = "TIA.Generator.Registry.v1";
 const MAX_COLUMNS = 16384;
@@ -524,6 +525,171 @@ function selectedSubject(context, state, activeId) {
   if (!found) throw new Error("Open a generated subject tab or its Manual Checking tab first.");
   return found;
 }
+
+async function sortingSubject(context) {
+  const active = context.workbook.worksheets.getActiveWorksheet().load("id");
+  const state = await registry(context);
+  const config = selectedSubject(context, state, active.id);
+  const layout = subjectLayout(config.questions, config.students);
+  const sheets = context.workbook.worksheets.load("items/name");
+  const sheet = context.workbook.worksheets.getItem(config.id).load("name");
+  const headers = sheet.getRangeByIndexes(8, 0, 1, layout.group).load("text");
+  const footer = sheet.getRange("A" + layout.footer).load("text");
+  const used = sheet.getUsedRange(true).load("columnIndex,columnCount");
+  sheet.getUsedRange().calculate();
+  await context.sync();
+  const normalize = value => key(value).replace(/[^a-z0-9]/g, "");
+  if (normalize(headers.text[0][layout.rank - 1]) !== "analysisrank" ||
+      normalize(headers.text[0][layout.group - 1]) !== "analysisgroup" ||
+      !normalize(footer.text[0][0]).includes("itemsansweredcorrectly")) {
+    throw new Error("Keep the generated subject's student area, Analysis Rank, Analysis Group and analysis rows in place before sorting.");
+  }
+  return { sheet, config, layout, names: sheets.items.map(item => item.name),
+    width: Math.max(layout.group, used.columnIndex + used.columnCount) };
+}
+
+function at(sheet, rect) { return sheet.getRangeByIndexes(rect.row, rect.col, rect.height, rect.width); }
+
+async function sortSnapshot(context, sheet, rect) {
+  const range = at(sheet, rect).load("values,formulas,formulasR1C1");
+  const formulas = range.getSpecialCellsOrNullObject("Formulas").load("address");
+  await context.sync();
+  return { values: range.values, a1: range.formulas, r1c1: range.formulasR1C1,
+    mask: formulaMask(formulas.isNullObject ? "" : formulas.address, rect.row, rect.col, rect.height, rect.width) };
+}
+
+function writeSortFormulas(sheet, rect, matrix, mask) {
+  for (const run of formulaRuns(matrix, mask)) {
+    sheet.getRangeByIndexes(rect.row + run.row, rect.col + run.col, 1, run.formulas[0].length).formulasR1C1 = run.formulas;
+  }
+}
+
+async function restoreSortBackup(sheetId, backupId, rect, snapshot) {
+  let restored = false, detail = "";
+  try {
+    await Excel.run(async context => {
+      const sheet = context.workbook.worksheets.getItem(sheetId);
+      const backup = context.workbook.worksheets.getItem(backupId);
+      at(sheet, rect).copyFrom(at(backup, rect), "All");
+      writeSortFormulas(sheet, rect, snapshot.r1c1, snapshot.mask);
+      sheet.getUsedRange().calculate();
+      await context.sync();
+      restored = true;
+      try { backup.delete(); await context.sync(); }
+      catch (error) { detail = "The original table was restored; the temporary backup could not be removed."; }
+    });
+  } catch (error) {
+    detail = error.message || String(error);
+    // A failed restoration keeps the backup available for recovery.
+    try {
+      await Excel.run(async context => {
+        const backup = context.workbook.worksheets.getItem(backupId);
+        backup.visibility = "Visible";
+        await context.sync();
+      });
+    } catch (_) { /* Preserve the original failure details. */ }
+  }
+  return { restored, detail };
+}
+
+async function sortWithBackup(context, target, rect, original, expected, action) {
+  const backupName = uniqueTabName("TIA Sort Backup", target.names);
+  let backup, backupId = "", ready = false, started = false, stage = "creating a sort backup";
+  try {
+    backup = context.workbook.worksheets.add(backupName);
+    backup.load("id");
+    await context.sync();
+    backupId = backup.id;
+    backup.visibility = "Hidden";
+    at(backup, rect).copyFrom(at(target.sheet, rect), "All");
+    await context.sync();
+    ready = true;
+    started = true;
+    await action(value => { stage = value; });
+    stage = "verifying the sorted names, item IDs and answers";
+    target.sheet.getUsedRange().calculate();
+    const result = at(target.sheet, rect).load("values");
+    await context.sync();
+    verifyLiteralCells(result.values, expected.values, expected.mask);
+  } catch (error) {
+    let recovery = "The subject table was not changed.";
+    if (ready && started) {
+      const result = await restoreSortBackup(target.config.id, backupId, rect, original);
+      recovery = result.restored ? "The original table was restored. " + result.detail :
+        'The backup "' + backupName + '" was retained for recovery. ' + result.detail;
+    } else if (backupId) {
+      try { await cleanup([backupId]); } catch (failure) { recovery += ' The temporary backup "' + backupName + '" could not be removed.'; }
+    }
+    const failure = new Error("Sorting stopped while " + stage + ". " + (error.message || String(error)) + " " + recovery);
+    failure.stage = stage; failure.code = error.code; failure.debugInfo = error.debugInfo;
+    throw failure;
+  }
+  // The table is verified now. A cleanup error must not undo a completed sort.
+  try {
+    target.sheet.activate();
+    backup.delete();
+    await context.sync();
+    return "";
+  } catch (error) {
+    return ' The sort finished, but cleanup of temporary backup "' + backupName + '" could not be confirmed.';
+  }
+}
+
+export async function sortParticipantsByRank() {
+  return guarded(async () => Excel.run(async context => {
+    const target = await sortingSubject(context), { sheet, layout: l } = target;
+    const rect = { row: 9, col: 0, height: l.students, width: target.width };
+    const snapshot = await sortSnapshot(context, sheet, rect);
+    const order = participantOrder(snapshot.values.map(row => row[0]), snapshot.values.map(row => row[1]), snapshot.values.map(row => row[l.rank - 1]));
+    if (identityOrder(order)) return "Participants in " + sheet.name + " are already in rank order.";
+    for (const index of [l.total - 1, l.score - 1, l.rank - 1, l.group - 1]) {
+      if (snapshot.mask.some(row => !row[index])) throw new Error("Some score, rank or group formulas are missing. Restore those generated formulas before sorting participants.");
+    }
+    const expected = { values: reorderRows(snapshot.values, order), mask: reorderRows(snapshot.mask, order) };
+    const sortedFormulas = reorderRows(snapshot.r1c1, order);
+    const warning = await sortWithBackup(context, target, rect, snapshot, expected, async progress => {
+      progress("sorting participants by Analysis Rank");
+      at(sheet, rect).sort.apply([{ key: l.rank - 1, ascending: true, sortOn: "Value" }, { key: 1, ascending: true, sortOn: "Value" }], false, false, "Rows");
+      writeSortFormulas(sheet, rect, sortedFormulas, expected.mask);
+      // These formulas belong to row positions, rather than to the moved person.
+      sheet.getRangeByIndexes(9, l.total - 1, l.students, 2).formulas = snapshot.a1.map(row => row.slice(l.total - 1, l.score));
+      sheet.getRangeByIndexes(9, l.rank - 1, l.students, 2).formulas = snapshot.a1.map(row => row.slice(l.rank - 1, l.group));
+      await context.sync();
+    });
+    return "Sorted participants in " + sheet.name + " by Analysis Rank, highest score first. Original Student # values were kept." + warning;
+  }));
+}
+
+async function reorderSubjectItems(byPercent) {
+  return guarded(async () => Excel.run(async context => {
+    const target = await sortingSubject(context), { sheet, layout: l } = target;
+    const rect = { row: 8, col: 2, height: l.students + 7, width: l.questions };
+    const snapshot = await sortSnapshot(context, sheet, rect);
+    const ids = itemOrder(snapshot.values[0], l.questions);
+    const order = questionOrder(ids, snapshot.values[l.students + 2], byPercent);
+    if (identityOrder(order)) return "Items in " + sheet.name + " are already in " + (byPercent ? "highest-to-lowest % correct" : "original item-number") + " order.";
+    const expected = { values: reorderColumns(snapshot.values, order), mask: reorderColumns(snapshot.mask, order) };
+    expected.values[0] = order.map(i => ids[i]);
+    expected.mask[0].fill(false);
+    const sortedFormulas = reorderColumns(snapshot.r1c1, order);
+    const fields = byPercent ? [{ key: l.students + 2, ascending: false, sortOn: "Value" }, { key: 0, ascending: true, sortOn: "Value" }] :
+      [{ key: 0, ascending: true, sortOn: "Value" }];
+    const warning = await sortWithBackup(context, target, rect, snapshot, expected, async progress => {
+      progress(byPercent ? "sorting items by % correct" : "restoring the original item order");
+      // Normalize displayed headings such as "Item 10" before Excel compares ties.
+      sheet.getRangeByIndexes(8, 2, 1, l.questions).values = [ids];
+      at(sheet, rect).sort.apply(fields, false, false, "Columns");
+      sheet.getRangeByIndexes(8, 2, 1, l.questions).values = [expected.values[0]];
+      writeSortFormulas(sheet, rect, sortedFormulas, expected.mask);
+      await context.sync();
+    });
+    return (byPercent ? "Sorted items in " + sheet.name + " from highest to lowest % correct. Ties use item number." :
+      "Restored the original item-number order in " + sheet.name + ".") + warning;
+  }));
+}
+
+export async function sortItemsByPercentCorrect() { return reorderSubjectItems(true); }
+export async function restoreOriginalItemOrder() { return reorderSubjectItems(false); }
 
 async function applyView(context, config) {
   if (!config.paperId) throw new Error("This subject has no Manual Checking tab.");

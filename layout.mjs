@@ -1,4 +1,4 @@
-import { CHECK, column, key, itemOrder } from "./domain.mjs?v=0.2.2";
+import { CHECK, column, key, itemOrder } from "./domain.mjs?v=0.3.0";
 
 const compact = value => key(value).replace(/[^a-z0-9]/g, "");
 export const FIRST_STUDENT = 10;

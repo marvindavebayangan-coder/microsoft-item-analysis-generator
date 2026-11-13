@@ -1,5 +1,6 @@
-import { buildManifest } from "./manifest-builder.mjs?v=0.2.2";
-import { prepareWorkbook, generateSubject, gradePaper, applyStudentView, registerEvents } from "./workbook.mjs?v=0.2.2";
+import { buildManifest } from "./manifest-builder.mjs?v=0.3.0";
+import { prepareWorkbook, generateSubject, gradePaper, applyStudentView, sortParticipantsByRank,
+  sortItemsByPercentCorrect, restoreOriginalItemOrder, registerEvents } from "./workbook.mjs?v=0.3.0";
 
 const status = document.getElementById("status");
 const connection = document.getElementById("connection");
@@ -38,6 +39,9 @@ document.getElementById("prepare").addEventListener("click", () => perform("Chec
 document.getElementById("generate").addEventListener("click", () => perform("Reading the roster and generating the subject…", generateSubject));
 document.getElementById("grade").addEventListener("click", () => perform("Checking paper keys and answers…", gradePaper));
 document.getElementById("view").addEventListener("click", () => perform("Applying the student selection…", applyStudentView));
+document.getElementById("sort-participants").addEventListener("click", () => perform("Sorting participants by rank…", sortParticipantsByRank));
+document.getElementById("sort-items").addEventListener("click", () => perform("Sorting items by % correct…", sortItemsByPercentCorrect));
+document.getElementById("restore-items").addEventListener("click", () => perform("Restoring original item order…", restoreOriginalItemOrder));
 
 try {
   const xml = buildManifest(base);
@@ -50,7 +54,7 @@ try {
     document.body.append(link); link.click(); link.remove();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   });
-  document.getElementById("download-help").textContent = "This XML opens prototype 0.2.2 at this HTTPS address.";
+  document.getElementById("download-help").textContent = "This XML opens prototype 0.3.0 at this HTTPS address.";
 } catch (error) {
   document.getElementById("download-help").textContent = "Publish these files at an HTTPS address to download the XML.";
 }

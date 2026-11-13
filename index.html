@@ -4,13 +4,13 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Microsoft Item Analysis Generator</title>
-  <link rel="stylesheet" href="styles.css?v=0.2.2">
+  <link rel="stylesheet" href="styles.css?v=0.3.0">
   <script src="https://officeapis.public.onecdn.static.microsoft/1/office.js"></script>
-  <script type="module" src="app.mjs?v=0.2.2"></script>
+  <script type="module" src="app.mjs?v=0.3.0"></script>
 </head>
 <body>
   <main>
-    <header><p class="eyebrow">SDO Kalinga ICT · Prototype 0.2.2</p>
+    <header><p class="eyebrow">SDO Kalinga ICT · Prototype 0.3.0</p>
       <h1>Item Analysis<br>Generator</h1>
       <p>Create a subject from your roster, then check paper answers alongside its analysis.</p>
       <p id="connection" class="connection">Checking Excel connection…</p>
@@ -31,6 +31,16 @@
       <p class="detail">Use B1 to select a student or Show all. Keep this add-in open for automatic column selection and P/p/1 conversion to ✓.</p>
       <button id="view" data-action class="secondary" type="button" disabled>Apply Student View</button>
     </section>
+    <section aria-labelledby="sort-title">
+      <h2 id="sort-title">Organize results</h2>
+      <p class="detail">Open a generated subject or its Manual Checking tab. Grade the recorded answers before sorting.</p>
+      <button id="sort-participants" data-action type="button" disabled>Sort Participants by Rank</button>
+      <p class="detail">Rank 1 first. Each name, Student # and its answers move together.</p>
+      <button id="sort-items" data-action type="button" disabled>Sort Items by % Correct</button>
+      <p class="detail">Highest to lowest. Ties use the original item number.</p>
+      <button id="restore-items" data-action class="secondary" type="button" disabled>Restore Original Item Order</button>
+      <p class="detail">Return item columns to 1, 2, 3… Paper grading continues to use each student’s name and original item number.</p>
+    </section>
     <section class="status-box" aria-label="Operation result">
       <p id="status" role="status" aria-live="polite">Waiting for Excel…</p>
       <details id="error-details" hidden><summary>Error details</summary><pre id="error"></pre></details>
@@ -42,7 +52,7 @@
       <p id="download-help" class="detail"></p>
       <p class="detail" id="page-address"></p>
     </details>
-    <p class="footer">Prototype 0.2.2 uses your workbook template for generation and paper grading. Read the decision notes below each subject’s analysis. Sorting commands and Microsoft Forms integration come in later steps.</p>
+    <p class="footer">Prototype 0.3.0 supports template generation, paper grading and sorting. Read the decision notes below each subject’s analysis. Microsoft Forms integration comes in a later step.</p>
   </main>
 </body>
 </html>
