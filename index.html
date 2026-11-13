@@ -4,13 +4,13 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Microsoft Item Analysis Generator</title>
-  <link rel="stylesheet" href="styles.css?v=0.3.1">
+  <link rel="stylesheet" href="styles.css?v=0.4.0">
   <script src="https://officeapis.public.onecdn.static.microsoft/1/office.js"></script>
-  <script type="module" src="app.mjs?v=0.3.1"></script>
+  <script type="module" src="app.mjs?v=0.4.0"></script>
 </head>
 <body>
   <main>
-    <header><p class="eyebrow">SDO Kalinga ICT · Prototype 0.3.1</p>
+    <header><p class="eyebrow">SDO Kalinga ICT · Prototype 0.4.0</p>
       <h1>Item Analysis<br>Generator</h1>
       <p>Create a subject from your roster, then check paper answers alongside its analysis.</p>
       <p id="connection" class="connection">Checking Excel connection…</p>
@@ -23,6 +23,29 @@
       <p class="detail">Edit Generate!B5:B12 and the names in column A. Fill paper students’ name cells with plain red.</p>
       <button id="generate" data-action type="button" disabled>2. Generate Subject</button>
       <p class="detail">Up to 100 questions and 100 students. Blank name cells are ignored.</p>
+    </section>
+    <section aria-labelledby="quiz-title">
+      <h2 id="quiz-title">Microsoft Forms quiz</h2>
+      <p class="detail">Connect a quiz to one subject, then import its downloaded Excel results. Results refresh when you import a file.</p>
+      <label for="quiz-subject">TIA subject</label>
+      <select id="quiz-subject" disabled><option value="">Choose a generated subject</option></select>
+      <p id="quiz-state" class="detail" aria-live="polite">Select a generated subject.</p>
+      <a id="quiz-link" class="quiz-link" hidden target="_blank" rel="noopener noreferrer">Open connected quiz</a>
+      <label for="quiz-url">Quiz link from Collect responses</label>
+      <input id="quiz-url" type="url" placeholder="https://forms.office.com/r/…" autocomplete="off" disabled>
+      <label for="quiz-file">Excel results from this quiz</label>
+      <input id="quiz-file" type="file" accept=".xlsx" disabled>
+      <p class="detail">Use one-point graded items and a zero-point name question. Choose the latest results exported from this same quiz, with the original question order.</p>
+      <div id="quiz-preview" hidden>
+        <label for="quiz-name">Column containing the student's roster name</label>
+        <select id="quiz-name" disabled></select>
+        <p id="quiz-summary" class="detail"></p>
+        <details class="mapping"><summary>Review item mapping</summary><ol id="quiz-items"></ol></details>
+      </div>
+      <button id="quiz-connect" data-action type="button" disabled>Connect Quiz</button>
+      <button id="quiz-import" data-action type="button" disabled>Import Responses</button>
+      <button id="quiz-disconnect" data-action class="secondary" type="button" disabled hidden>Disconnect Quiz</button>
+      <p class="detail">Disconnecting keeps existing marks. Paper students are skipped during imports. Repeated attempts are flagged for review.</p>
     </section>
     <section aria-labelledby="paper-title">
       <h2 id="paper-title">Check paper answers</h2>
@@ -53,7 +76,7 @@
       <p id="download-help" class="detail"></p>
       <p class="detail" id="page-address"></p>
     </details>
-    <p class="footer">Prototype 0.3.1 supports template generation, paper grading and sorting. Read the decision notes below each subject’s analysis. Microsoft Forms integration comes in a later step.</p>
+    <p class="footer">Prototype 0.4.0 supports template generation, paper grading, sorting and Microsoft Forms results imports. Import a fresh Excel results file to refresh online marks. Automatic response collection is a later step.</p>
   </main>
 </body>
 </html>

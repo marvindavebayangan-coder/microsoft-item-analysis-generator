@@ -1,7 +1,8 @@
-import { CHECK, column, key, literal, text, isCheck, readInput, uniqueTabName, itemOrder, paperGrades } from "./domain.mjs?v=0.3.1";
-import { detectTemplate, subjectLayout, headerPlan, analysisFormulas, analysisLabels, MIN_ITEM_WIDTH, GUIDE_LINES } from "./layout.mjs?v=0.3.1";
+import { CHECK, column, key, literal, text, isCheck, readInput, uniqueTabName, itemOrder, paperGrades } from "./domain.mjs?v=0.4.0";
+import { detectTemplate, subjectLayout, headerPlan, analysisFormulas, analysisLabels, MIN_ITEM_WIDTH, GUIDE_LINES } from "./layout.mjs?v=0.4.0";
 import { participantOrder, questionOrder, identityOrder, reorderRows, reorderColumns, formulaMask, formulaRuns,
-  verifyLiteralCells, verifyFormulaCells, labelRepairMask } from "./sorting.mjs?v=0.3.1";
+  verifyLiteralCells, verifyFormulaCells, labelRepairMask } from "./sorting.mjs?v=0.4.0";
+import { quizUrl, formsMapping, planFormsImport } from "./forms.mjs?v=0.4.0";
 
 const REGISTRY = "TIA.Generator.Registry.v1";
 const MAX_COLUMNS = 16384;
@@ -570,7 +571,7 @@ function writeSortFormulas(sheet, rect, matrix, mask, formats) {
   }
 }
 
-async function restoreSortBackup(sheetId, backupId, rect, snapshot) {
+async function restoreSortBackup(sheetId, backupId, rect, snapshot, afterRestore) {
   let restored = false, detail = "";
   try {
     await Excel.run(async context => {
@@ -584,6 +585,7 @@ async function restoreSortBackup(sheetId, backupId, rect, snapshot) {
       const restoredSnapshot = await sortSnapshot(context, sheet, rect);
       verifyLiteralCells(restoredSnapshot.values, snapshot.values, snapshot.mask);
       verifyFormulaCells(restoredSnapshot.r1c1, restoredSnapshot.mask, snapshot.r1c1, snapshot.mask);
+      if (afterRestore) { await afterRestore(context); await context.sync(); }
       restored = true;
       try { backup.delete(); await context.sync(); }
       catch (error) { detail = "The original table was restored; the temporary backup could not be removed."; }
@@ -602,8 +604,9 @@ async function restoreSortBackup(sheetId, backupId, rect, snapshot) {
   return { restored, detail };
 }
 
-async function sortWithBackup(context, target, rect, original, expected, action) {
-  const backupName = uniqueTabName("TIA Sort Backup", target.names);
+async function sortWithBackup(context, target, rect, original, expected, action, options = {}) {
+  const operation = options.operation || "Sorting";
+  const backupName = uniqueTabName(options.backupName || "TIA Sort Backup", target.names);
   target.names.push(backupName);
   let backup, backupId = "", ready = false, started = false, stage = "creating a sort backup";
   try {
@@ -617,21 +620,22 @@ async function sortWithBackup(context, target, rect, original, expected, action)
     ready = true;
     started = true;
     await action(value => { stage = value; });
-    stage = "verifying the sorted names, item IDs and answers";
+    stage = options.verifyStage || "verifying the sorted names, item IDs and answers";
     target.sheet.getUsedRange().calculate();
     const result = await sortSnapshot(context, target.sheet, rect);
     verifyLiteralCells(result.values, expected.values, expected.mask);
     verifyFormulaCells(result.r1c1, result.mask, expected.r1c1, expected.mask);
+    if (options.commit) { stage = "saving the import history"; await options.commit(context); await context.sync(); }
   } catch (error) {
     let recovery = "The subject table was not changed.";
     if (ready && started) {
-      const result = await restoreSortBackup(target.config.id, backupId, rect, original);
+      const result = await restoreSortBackup(target.config.id, backupId, rect, original, options.rollback);
       recovery = result.restored ? "The original table was restored. " + result.detail :
         'The backup "' + backupName + '" was retained for recovery. ' + result.detail;
     } else if (backupId) {
       try { await cleanup([backupId]); } catch (failure) { recovery += ' The temporary backup "' + backupName + '" could not be removed.'; }
     }
-    const failure = new Error("Sorting stopped while " + stage + ". " + (error.message || String(error)) + " " + recovery);
+    const failure = new Error(operation + " stopped while " + stage + ". " + (error.message || String(error)) + " " + recovery);
     failure.stage = stage; failure.code = error.code; failure.debugInfo = error.debugInfo;
     throw failure;
   }
@@ -642,7 +646,7 @@ async function sortWithBackup(context, target, rect, original, expected, action)
     await context.sync();
     return "";
   } catch (error) {
-    return ' The sort finished, but cleanup of temporary backup "' + backupName + '" could not be confirmed.';
+    return ' The ' + (options.operation ? "import" : "sort") + ' finished, but cleanup of temporary backup "' + backupName + '" could not be confirmed.';
   }
 }
 
@@ -724,6 +728,104 @@ async function reorderSubjectItems(byPercent) {
 
 export async function sortItemsByPercentCorrect() { return reorderSubjectItems(true); }
 export async function restoreOriginalItemOrder() { return reorderSubjectItems(false); }
+
+async function quizTarget(context, state, id) {
+  const config = state.subjects.find(subject => subject.id === id);
+  if (!config || config.layoutVersion !== 2) throw new Error("Choose a subject generated from your Original template.");
+  const sheets = context.workbook.worksheets.load("items/id,items/name");
+  await context.sync();
+  if (!sheets.items.some(sheet => sheet.id === id)) throw new Error("That subject tab no longer exists. Choose another subject.");
+  const sheet = sheets.getItem(id), layout = subjectLayout(config.questions, config.students);
+  const names = sheet.getRangeByIndexes(9, 0, config.students, 1).load("text");
+  const headings = sheet.getRangeByIndexes(8, 2, 1, config.questions).load("values");
+  const footer = sheet.getRange("A" + layout.footer).load("text");
+  await context.sync();
+  itemOrder(headings.values[0], config.questions);
+  if (!key(footer.text[0][0]).replace(/[^a-z]/g, "").includes("itemsansweredcorrectly")) throw new Error("Keep the generated subject's student and analysis rows in place before importing.");
+  return { config, sheet, layout, names: sheets.items.map(sheet => sheet.name), roster: names.text.map(row => row[0]), headings: headings.values[0] };
+}
+
+export async function listQuizSubjects() {
+  return Excel.run(async context => {
+    const state = await registry(context), sheets = context.workbook.worksheets.load("items/id,items/name");
+    const active = sheets.getActiveWorksheet().load("id");
+    await context.sync();
+    return { active: state.subjects.find(subject => subject.id === active.id || subject.paperId === active.id)?.id || "",
+      subjects: state.subjects.filter(subject => subject.layoutVersion === 2 && sheets.items.some(sheet => sheet.id === subject.id)).map(subject => ({
+        id: subject.id, name: sheets.items.find(sheet => sheet.id === subject.id).name, questions: subject.questions,
+        connected: !!subject.quiz?.active, url: subject.quiz?.url || "", nameHeader: subject.quiz?.nameHeader || "",
+        nameColumn: subject.quiz?.mapping?.nameColumn, imported: Object.keys(subject.quiz?.responses || {}).length,
+        lastImport: subject.quiz?.lastImport || ""
+      })) };
+  });
+}
+
+export async function connectQuiz(subjectId, { url, data, nameColumn }) {
+  return guarded(async () => Excel.run(async context => {
+    const state = await registry(context), target = await quizTarget(context, state, subjectId), config = target.config;
+    if (config.quiz?.active) throw new Error("This subject already has a connected quiz. Use Import Responses, or disconnect it first.");
+    const address = quizUrl(url), mapping = formsMapping(data, nameColumn, config.questions);
+    const previous = config.quiz;
+    if (previous && Object.keys(previous.responses || {}).length && (previous.url !== address || previous.mapping.hash !== mapping.hash)) {
+      throw new Error("This subject contains imported results from another quiz or question layout. Generate a fresh subject for a different exam so results stay separate.");
+    }
+    const quiz = { active: true, url: address, mapping, nameHeader: data.headers[nameColumn], responses: previous?.responses || {},
+      lastImport: previous?.lastImport || "", connectedAt: new Date().toISOString() };
+    const plan = planFormsImport(data, quiz, target.roster, target.headings, config.paperNames);
+    if (target.roster.every(name => !key(name) || config.paperNames.some(paper => key(paper) === key(name)))) throw new Error("This subject has no online students. Generate a subject with online names unfilled in Generate.");
+    const before = JSON.stringify(state);
+    config.quiz = quiz;
+    try { saveRegistry(context, state); await context.sync(); }
+    catch (error) { await Excel.run(async recovery => { recovery.workbook.settings.add(REGISTRY, before); await recovery.sync(); }); throw error; }
+    return `Connected ${config.tabName} for file imports: ${config.questions} items, student column ${quiz.nameHeader}. ${plan.updates.length} response(s) match online students. Choose Import Responses to apply the loaded results.`;
+  }));
+}
+
+export async function disconnectQuiz(subjectId) {
+  return guarded(async () => Excel.run(async context => {
+    const state = await registry(context), target = await quizTarget(context, state, subjectId), config = target.config;
+    if (!config.quiz?.active) throw new Error("This subject has no connected quiz.");
+    const before = JSON.stringify(state);
+    config.quiz.active = false;
+    try { saveRegistry(context, state); await context.sync(); }
+    catch (error) { await Excel.run(async recovery => { recovery.workbook.settings.add(REGISTRY, before); await recovery.sync(); }); throw error; }
+    return `Disconnected the quiz from ${config.tabName}. Imported marks were kept. The Microsoft Forms quiz and its responses were not deleted.`;
+  }));
+}
+
+export async function importQuizResponses(subjectId, data) {
+  return guarded(async () => Excel.run(async context => {
+    const state = await registry(context), target = await quizTarget(context, state, subjectId), { config, sheet, layout: l } = target;
+    if (!config.quiz?.active) throw new Error("Connect this subject to its quiz before importing responses.");
+    const plan = planFormsImport(data, config.quiz, target.roster, target.headings, config.paperNames);
+    const rect = { row: 9, col: 2, height: config.students, width: config.questions };
+    const snapshot = await sortSnapshot(context, sheet, rect);
+    const expected = { values: snapshot.values.map(row => row.slice()), mask: snapshot.mask.map(row => row.slice()), r1c1: snapshot.r1c1.map(row => row.slice()) };
+    const changed = plan.updates.filter(entry => entry.marks.some((value, c) => value !== snapshot.values[entry.row][c] || snapshot.mask[entry.row][c]));
+    for (const entry of changed) { expected.values[entry.row] = entry.marks; expected.mask[entry.row].fill(false); expected.r1c1[entry.row] = entry.marks; }
+    const previousState = JSON.stringify(state);
+    config.quiz.responses = plan.responses;
+    config.quiz.lastImport = new Date().toISOString();
+    config.onlineStudentKeys = [...new Set([...(config.onlineStudentKeys || []), ...plan.updates.map(entry => entry.key)])];
+    let warning = "";
+    const commit = inner => saveRegistry(inner, state);
+    const rollback = inner => inner.workbook.settings.add(REGISTRY, previousState);
+    if (changed.length) {
+      warning = await sortWithBackup(context, target, rect, snapshot, expected, async progress => {
+        progress("matching Forms results to student names and original item numbers");
+        for (const entry of changed) sheet.getRangeByIndexes(entry.row + 9, 2, 1, config.questions).values = [entry.marks];
+        await context.sync();
+      }, { operation: "Import", backupName: "TIA Import Backup", verifyStage: "verifying the imported item marks", commit, rollback });
+    } else {
+      try { sheet.getUsedRange().calculate(); commit(context); await context.sync(); }
+      catch (error) { await Excel.run(async recovery => { rollback(recovery); await recovery.sync(); }); throw error; }
+    }
+    const detail = (label, entries) => entries.length ? ` ${label}: ${entries.length} (${[...new Set(entries)].slice(0, 5).join(", ")}${entries.length > 5 ? ", …" : ""}).` : "";
+    const sample = plan.updates.length === 1 ? ` ${plan.updates[0].name}: ${plan.updates[0].correct}/${config.questions} (${Math.round(plan.updates[0].correct / config.questions * 100)}%).` : "";
+    return `Imported ${changed.length} changed student result(s) into ${config.tabName}; ${plan.updates.length - changed.length} were already current.` + sample +
+      detail("Unmatched names", plan.unmatched) + detail("Paper students skipped", plan.paperSkipped) + detail("Incomplete grading skipped", plan.pending) + warning;
+  }));
+}
 
 async function applyView(context, config) {
   if (!config.paperId) throw new Error("This subject has no Manual Checking tab.");

@@ -1,4 +1,4 @@
-import { itemOrder, key, text } from "./domain.mjs?v=0.3.1";
+import { itemOrder, key, text } from "./domain.mjs?v=0.4.0";
 
 export const identityOrder = order => order.every((source, destination) => source === destination);
 export const reorderRows = (rows, order) => order.map(source => rows[source].slice());

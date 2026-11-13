@@ -14,7 +14,7 @@ export function buildManifest(baseAddress) {
   if (!parsed.pathname.endsWith("/")) parsed.pathname += "/";
   const base = parsed.href;
   const appPage = new URL("index.html", base);
-  appPage.searchParams.set("v", "0.3.1");
+  appPage.searchParams.set("v", "0.4.0");
   const page = xmlText(appPage.href);
   const image = size => xmlText(new URL(`icon-${size}.png`, base).href);
   return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
@@ -23,11 +23,11 @@ export function buildManifest(baseAddress) {
  xmlns:bt="http://schemas.microsoft.com/office/officeappbasictypes/1.0"
  xsi:type="TaskPaneApp">
  <Id>${APP_ID}</Id>
- <Version>1.3.1.0</Version>
+ <Version>1.4.0.0</Version>
  <ProviderName>SDO Kalinga ICT</ProviderName>
  <DefaultLocale>en-US</DefaultLocale>
  <DisplayName DefaultValue="Item Analysis Generator"/>
- <Description DefaultValue="Generate subjects, grade paper answers, and calculate V14 item analysis."/>
+ <Description DefaultValue="Generate subjects, import Forms quiz results, grade paper answers, and calculate V14 item analysis."/>
  <IconUrl DefaultValue="${image(32)}"/>
  <HighResolutionIconUrl DefaultValue="${image(64)}"/>
  <SupportUrl DefaultValue="${page}"/>
